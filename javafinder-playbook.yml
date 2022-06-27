@@ -50,7 +50,7 @@
       ansible.builtin.lineinfile:
         line: "{{ inventory_hostname }} ; {{ ansible_fqdn }} ; {{ item.item.path }} ;
                {{ item.stderr_lines[0] | default('N/A', true) }} ; CPU cores: {{ ansible_processor_cores }}"
-        path: "/tmp/javafinder.txt"
+        path: "/tmp/javafinder.csv"
         create: true
         mode: '0640'
       loop: "{{ java_result.results | flatten(levels=1) }}"
