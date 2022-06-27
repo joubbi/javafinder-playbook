@@ -1,0 +1,57 @@
+---
+#
+# An Ansible playbook that finds java and prints the output of 'java -version' to a local file.
+# Written by Farid Joubbi 2022.
+#
+
+- name: javafinder-playbook
+  hosts: localhost
+
+  tasks:
+
+    - name: Get paths to search
+      ansible.builtin.shell: |
+        set -o pipefail
+        mount -v | grep -E -v "nfs|oracle|tmpfs|lofs|ctfs|objfs|fd|devfs|mntfs|sharefs|odm|proc|devpts|sysfs" | awk '{print $3}'
+      args:
+        executable: /bin/bash
+      changed_when: false
+      register: search_path
+
+    - name: Print paths to search
+      ansible.builtin.debug:
+        var: search_path
+        verbosity: 2
+
+    - name: Find java
+      ansible.builtin.find:
+        paths: "{{ search_path.stdout_lines }}"
+        recurse: true
+        follow: false
+        file_type: file
+        patterns: java
+      become: true
+      register: output
+
+    - name: Get java version
+      ansible.builtin.command: "{{ item.path | quote }} -version"
+      loop: "{{ output.files | flatten(levels=1) }}"
+      register: java_result
+      ignore_errors: true
+      become: true
+
+    - name: Print info
+      ansible.builtin.debug:
+        var: item.stderr_lines
+        verbosity: 2
+      loop: "{{ java_result.results | flatten(levels=1) }}"
+
+    - name: Save result to file
+      ansible.builtin.lineinfile:
+        line: "{{ inventory_hostname }} ; {{ ansible_fqdn }} ; {{ item.item.path }} ;
+               {{ item.stderr_lines[0] | default('N/A', true) }} ; CPU cores: {{ ansible_processor_cores }}"
+        path: "/tmp/javafinder.txt"
+        create: true
+        mode: '0640'
+      loop: "{{ java_result.results | flatten(levels=1) }}"
+      delegate_to: localhost
